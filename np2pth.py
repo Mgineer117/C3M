@@ -4,7 +4,7 @@ import torch
 import numpy as np
 
 def get_controller_wrapper(controller_path):
-    _controller = torch.load(controller_path, map_location=torch.device('cpu'))
+    _controller = torch.load(controller_path, map_location=torch.device('cpu'), weights_only=False)
     _controller.cpu()
 
     def controller(x, xe, uref):

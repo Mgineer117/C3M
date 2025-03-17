@@ -64,22 +64,43 @@ model_W, model_Wbot, model_u_w1, model_u_w2, W_func, u_func = get_model(num_dim_
 
 # constructing datasets
 def sample_xef():
-    return (X_MAX-X_MIN) * np.random.rand(num_dim_x, 1) + X_MIN
+    """
+    Generate a random reference state (xref) within the predefined state limits.
+    """
+    return (X_MAX - X_MIN) * np.random.rand(num_dim_x, 1) + X_MIN
+
 
 def sample_x(xref):
-    xe = (XE_MAX-XE_MIN) * np.random.rand(num_dim_x, 1) + XE_MIN
-    x = xref + xe
-    x[x>X_MAX] = X_MAX[x>X_MAX]
-    x[x<X_MIN] = X_MIN[x<X_MIN]
+    """
+    Generate a state vector (x) based on a reference state (xref) with added perturbations.
+    """
+    xe = (XE_MAX - XE_MIN) * np.random.rand(num_dim_x, 1) + XE_MIN  # Generate random perturbation
+    x = xref + xe  # Apply perturbation to reference state
+    
+    # Clip values to ensure they remain within valid state limits
+    x[x > X_MAX] = X_MAX[x > X_MAX]
+    x[x < X_MIN] = X_MIN[x < X_MIN]
+    
     return x
 
 def sample_uref():
-    return (U_MAX-U_MIN) * np.random.rand(num_dim_control, 1) + U_MIN
+    """
+    Generate a random control input (uref) within the predefined control input limits.
+    """
+    return (U_MAX - U_MIN) * np.random.rand(num_dim_control, 1) + U_MIN
+
 
 def sample_full():
-    xref = sample_xef()
-    uref = sample_uref()
-    x = sample_x(xref)
+    """
+    Generate a full sample consisting of:
+    - A reference state (xref)
+    - A random control input (uref)
+    - A perturbed state (x) derived from xref
+    """
+    xref = sample_xef()  # Sample a reference state
+    uref = sample_uref()  # Sample a random control input
+    x = sample_x(xref)  # Generate the perturbed state based on xref
+    
     return (x, xref, uref)
 
 X_tr = [sample_full() for _ in range(args.num_train)]
@@ -150,7 +171,9 @@ def loss_pos_matrix_random_sampling(A):
 
 def loss_pos_matrix_eigen_values(A):
     # A: bs x d x d
-    eigv = torch.symeig(A, eigenvectors=True)[0].view(-1)
+    # eigv = torch.symeig(A, eigenvectors=True)[0].view(-1)
+    # eigv = torch.linalg.eigh(A, UPLO='U')[0].view(-1) #  if upper else 'L'
+    eigv = torch.linalg.eigvalsh(A, UPLO='U').view(-1)
     negative_index = eigv.detach().cpu().numpy() < 0
     negative_eigv = eigv[negative_index]
     return negative_eigv.norm()
@@ -199,10 +222,12 @@ def forward(x, xref, uref, _lambda, verbose=False, acc=False, detach=False):
     loss += loss_pos_matrix_random_sampling(args.w_ub * torch.eye(W.shape[-1]).unsqueeze(0).type(x.type()) - W)
     loss += 1. * sum([1.*(C2**2).reshape(bs,-1).sum(dim=1).mean() for C2 in C2s])
 
+    L = torch.linalg.eigvalsh(Contraction, UPLO='U')
     if verbose:
-        print(torch.symeig(Contraction)[0].min(dim=1)[0].mean(), torch.symeig(Contraction)[0].max(dim=1)[0].mean(), torch.symeig(Contraction)[0].mean())
+        # print(torch.symeig(Contraction)[0].min(dim=1)[0].mean(), torch.symeig(Contraction)[0].max(dim=1)[0].mean(), torch.symeig(Contraction)[0].mean())
+        print(L.min(dim=1)[0].mean(), L.max(dim=1)[0].mean(), L.mean())
     if acc:
-        return loss, ((torch.symeig(Contraction)[0]>=0).sum(dim=1)==0).cpu().detach().numpy(), ((torch.symeig(C1_LHS_1)[0]>=0).sum(dim=1)==0).cpu().detach().numpy(), sum([1.*(C2**2).reshape(bs,-1).sum(dim=1).mean() for C2 in C2s]).item()
+        return loss, ((L>=0).sum(dim=1)==0).cpu().detach().numpy(), ((L>=0).sum(dim=1)==0).cpu().detach().numpy(), sum([1.*(C2**2).reshape(bs,-1).sum(dim=1).mean() for C2 in C2s]).item()
     else:
         return loss, None, None, None
 

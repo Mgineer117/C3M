@@ -64,10 +64,11 @@ if __name__ == '__main__':
     xstar, _ = EulerIntegrate(None, f, B, None, ustar, xstar_0, time_bound, time_step, with_tracking=False)
 
     fig = plt.figure(figsize=(8.0, 5.0))
-    if args.plot_type=='3D':
-        ax = fig.gca(projection='3d')
+    if args.plot_type == '3D':
+        ax = fig.add_subplot(111, projection='3d')  # ✅ Correct way to create a 3D plot
     else:
-        ax = fig.gca()
+        ax = fig.add_subplot(111)  # ✅ Correct way to create a 2D plot
+
 
     if args.plot_type == 'time':
         cmap = plt.get_cmap('plasma')
@@ -120,5 +121,6 @@ if __name__ == '__main__':
         plt.ylabel("error")
 
     plt.subplots_adjust(left=left, bottom=bottom, right=right, top=top)
-    plt.legend(frameon=True)
+    plt.legend()
+    plt.savefig("plot.png")
     plt.show()
